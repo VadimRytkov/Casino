@@ -1,0 +1,21 @@
+from setuptools import setup, find_packages
+
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
+
+setup(
+    name="casino-api",
+    version="0.1.0",
+    packages=find_packages(),
+    install_requires=requirements,
+    python_requires='>=3.7',
+    author="Your Name",
+    description="Online Casino API with FastAPI",
+    long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
+    entry_points={
+        'console_scripts': [
+            'casino-api=casino.main:run_app'
+        ]
+    }
+)
