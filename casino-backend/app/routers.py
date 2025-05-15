@@ -9,6 +9,7 @@ from .schemas import UserCreate, UserOut, Token, SpinRequest, GameHistoryOut
 from .deps import get_db, get_current_user
 from typing import List
 import random
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
@@ -37,51 +38,54 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 async def get_balance(current_user: User = Depends(get_current_user)):
     return current_user
 
-@router.post("/spin")
+@router.post("/spin", response_model=schemas.SpinResponse)
 async def spin(request: SpinRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    bet = request.bet
-    if bet <= 0 or bet > current_user.balance:
-        raise HTTPException(status_code=400, detail="Invalid bet amount")
-    
-    symbols = ['🍒', '🍋', '🍊', '🍇', '7️⃣', '💎']
-    # Генерируем три барабана по три символа
-    reels = [
-        [random.choice(symbols) for _ in range(3)],
-        [random.choice(symbols) for _ in range(3)],
-        [random.choice(symbols) for _ in range(3)],
-    ]
-    # Центральная линия — это второй символ каждого барабана
-    center_line = [reels[0][1], reels[1][1], reels[2][1]]
+    try:
+        bet = request.bet
+        if bet <= 0 or bet > current_user.balance:
+            return JSONResponse(status_code=400, content={"detail": "Invalid bet amount"})
+        
+        symbols = ['🍒', '🍋', '🍊', '🍇', '7️⃣', '💎']
+        # Генерируем три барабана по три символа
+        reels = [
+            [random.choice(symbols) for _ in range(3)],
+            [random.choice(symbols) for _ in range(3)],
+            [random.choice(symbols) for _ in range(3)],
+        ]
+        # Центральная линия — это второй символ каждого барабана
+        center_line = [reels[0][1], reels[1][1], reels[2][1]]
 
-    win = 0.0
-    result_description = ""
-    if center_line[0] == center_line[1] == center_line[2]:
-        if center_line[0] == '7️⃣':
-            win = bet * 10
-            result_description = "Джекпот! Три семерки"
-        elif center_line[0] == '💎':
-            win = bet * 8
-            result_description = "Три бриллианта"
+        win = 0.0
+        result_description = ""
+        if center_line[0] == center_line[1] == center_line[2]:
+            if center_line[0] == '7️⃣':
+                win = bet * 10
+                result_description = "Джекпот! Три семерки"
+            elif center_line[0] == '💎':
+                win = bet * 8
+                result_description = "Три бриллианта"
+            else:
+                win = bet * 5
+                result_description = "Три одинаковых символа"
+        elif center_line[0] == center_line[1] or center_line[1] == center_line[2]:
+            win = bet * 2
+            result_description = "Два одинаковых символа"
         else:
-            win = bet * 5
-            result_description = "Три одинаковых символа"
-    elif center_line[0] == center_line[1] or center_line[1] == center_line[2]:
-        win = bet * 2
-        result_description = "Два одинаковых символа"
-    else:
-        result_description = "Нет выигрышной комбинации"
+            result_description = "Нет выигрышной комбинации"
 
-    current_user.balance += win - bet
-    game = GameHistory(
-        user_id=current_user.id,
-        bet=bet,
-        win=win,
-        result=f"{result_description} ({''.join(center_line)})"
-    )
-    db.add(game)
-    await db.commit()
-    await db.refresh(current_user)
-    return {"result": center_line, "win": win, "balance": current_user.balance}
+        current_user.balance += win - bet
+        game = GameHistory(
+            user_id=current_user.id,
+            bet=bet,
+            win=win,
+            result=f"{result_description} ({''.join(center_line)})"
+        )
+        db.add(game)
+        await db.commit()
+        await db.refresh(current_user)
+        return {"result": center_line, "win": win, "balance": current_user.balance}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": str(e)})
 
 @router.get("/history")
 async def get_history(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
