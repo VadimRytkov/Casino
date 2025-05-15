@@ -59,4 +59,9 @@ class SpinRequest(BaseModel):
     bet: float
 
 class Balance(BaseModel):
+    balance: float
+
+class SpinResponse(BaseModel):
+    result: List[str]
+    win: float
     balance: float 
